@@ -4,6 +4,7 @@ const fs      = require("fs");
 const client = new Discord.Client();
 
 const newCommandExp = /^!newcommand.*$/
+const commandExp    = /^!.+$/
 
 const clientToken = fs.readFileSync("clienttoken.txt").toString();
 
@@ -62,7 +63,7 @@ client.on("ready", () =>
 client.on("message", message => 
 {
     // Find !x ---
-    if (newCommandExp.test(message.content))
+    if (newCommandExp.test(message.content) == true)
     {
         var spliceIndex = message.content.indexOf(" ");
         // Check i now
@@ -130,6 +131,19 @@ client.on("message", message =>
     }
 
     // Or if its !x, search.
+    // The user could type a command with spaces, but I'm just going to ignore it.
+
+    else if (commandExp.test(message.content) == true)
+    {
+        var command = findCommand(jsonCommands.commands, message.content, message.channel.guild.id)
+        if (!command)
+        {
+            message.channel.send("Command not found: `" + message.content + "`");
+            return;
+        }
+        
+        message.channel.send(command.response);
+    }
 
 });
 
