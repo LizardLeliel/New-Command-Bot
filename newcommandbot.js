@@ -51,6 +51,12 @@ client.on("ready", () =>
 
 client.on("message", message => 
 {
+    // Exit if not a guild
+    if (message.channel.type != "text")
+    {
+        message.channel.send("I'm only for guild dms!");
+    }
+
     // User types !newcommand
     if (newCommandExp.test(message.content) == true)
     {
