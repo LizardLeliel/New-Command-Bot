@@ -4,33 +4,30 @@ const fs      = require("fs");
 const client = new Discord.Client();
 
 const newCommandExp = /^!newcommand.*$/
-const commandExp    = /^!.+$/
+const commandExp    = /^![^ ]+$/
 
 const clientToken = fs.readFileSync("clienttoken.txt").toString();
 
-var jsonCommands;
+var commandList;
 
-// Description for commands:
 /* 
-{
-    "commands":
-    [
-    {
-        "command": "!x",
-        "serverID": int,
-        "response": "z"
-    },
-    {repeat}
-    ]   
-}
-*/
+ * command List format:
+ *  { commands: [array of commands] }
+ * A command object:
+ *  {
+ *      "command":  the command's name,
+ *      "serverID": the server the command is associated with
+ *      "response": the response the bot will give when the command
+ *                   is called.
+ *  } 
+ */
 
-// JSON.stringify(j)
 function findCommand(commandList, command, serverID)
 {
     var subCommandList = commandList.filter(x => x.command == command);
     var foundCommand   = subCommandList.filter(x => x.serverID == serverID);
-    // This asasumes they'll never be a second command made for the same server.
+    // This assumes no two commands with the same command name will be added 
+    //  to the same server (shouldn't happen in code logic) 
     return foundCommand[0];
 }
 
@@ -38,37 +35,36 @@ client.on("ready", () =>
 {
     console.log("The bot is ready >:)");
 
-    var jsonString;
     
+    // Fill commandList with file (or a default value if no file exists)
     if (fs.existsSync("commands.json"))
     {
-        jsonString   = fs.readFileSync("commands.json").toString();
-        jsonCommands = JSON.parse(jsonString);
+        var jsonString;
+        jsonString  = fs.readFileSync("commands.json").toString();
+        commandList = JSON.parse(jsonString);
     }
     else
     {
-        jsonCommands = {"commands": []};
+        commandList = {"commands": []};
     }
-
-    // Just keeping these two lines handy...
-    // var fd = fs.openSync("commands.json", "w+");
-    // var q  = fs.readSync(fd);
-});
+})
 
 client.on("message", message => 
 {
-    // Find !x ---
+    // User types !newcommand
     if (newCommandExp.test(message.content) == true)
     {
         var spliceIndex = message.content.indexOf(" ");
-        // Check i now
+        
+        // Make sure !newcommand is called with at least one argument.
         if (spliceIndex == -1)
         {
-            message.channel.send("\`!newcommand\` requires a name for the new command and"
-                               + " a response it'd give.");
+            message.channel.send("\`!newcommand\` requires a name for the new" 
+                               + " command and a response it'd give.");
             return;
         }
 
+        // Extract arguements.
         var args = message.content.slice(spliceIndex + 1); 
         var arg1, arg2;
 
@@ -85,48 +81,47 @@ client.on("message", message =>
             arg2 = args.slice(spliceIndex + 1);
         }
 
+        // Add an ! in front of arg1 to make things a little easier.
         arg1 = "!" + arg1;
 
-        //console.log("args: " + arg1 + " " + arg2);
-        //console.log("Found message: " + message.content);
+        // Find said command
+        var foundCommand 
+            = findCommand(commandList.commands, 
+                          arg1, 
+                          message.channel.guild.id);
 
-        // Either we:
-        //  1) Enter a new Command if it doesn't exist (unless there is no arg 2)
-        //  2) modify the command
-        //  3) delete the command if arg2 is empty. (unless there arg1 isn't an existing command)
-        var foundCommand = findCommand(jsonCommands.commands, arg1, message.channel.guild.id);
-
-        // Enter new comamnd
+        // User is creating a new command
         if (foundCommand == undefined && arg2 != "")
         {
             
-            jsonCommands.commands.push({
+            commandList.commands.push({
                 "command": arg1,
                 "serverID": message.channel.guild.id,
                 "response": arg2
             });
             
-            fs.writeFileSync("commands.json", JSON.stringify(jsonCommands));
+            fs.writeFileSync("commands.json", JSON.stringify(commandList));
             message.channel.send("Command `" + arg1 + "` added!");
         }
+        // User is editing a command.
         else if (foundCommand != undefined && arg2 != "")
         {
-            // Edit the command's response.
             foundCommand.response = arg2;
-            fs.writeFileSync("commands.json", JSON.stringify(jsonCommands));
+
+            fs.writeFileSync("commands.json", JSON.stringify(commandList));
             message.channel.send("Command `" + arg1 + "` edited!");
         }
+        //User is deleting a command
         else if (foundCommand != undefined && arg2 == "")
         {
-            // Delete
-            // Find and remove
-            jsonCommands.commands
-                = jsonCommands.commands.filter(x => x != foundCommand);
+            // Filter the command out
+            commandList.commands
+                = commandList.commands.filter(x => x != foundCommand);
 
             message.channel.send("Command `" + arg1 + "` removed.");
-            fs.writeFileSync("commands.json", JSON.stringify(jsonCommands));
+            fs.writeFileSync("commands.json", JSON.stringify(commandList));
         }
-        else // There's only one more option
+        else // User creates a new command but with no response 
         {
             message.channel.send("You need to give a response for command `" 
                 + arg1 + "`!");
@@ -134,19 +129,24 @@ client.on("message", message =>
 
     }
 
-    // Or if its !x, search.
-    // The user could type a command with spaces, but I'm just going to ignore it.
+    // User types something like a command (that has nos spaces)
+    //  - search for the command.
     else if (commandExp.test(message.content) == true)
     {
         var command 
-            = findCommand(jsonCommands.commands, message.content, message.channel.guild.id)
+            = findCommand(commandList.commands, 
+                          message.content, 
+                          message.channel.guild.id)
+     
         if (!command)
         {
-            message.channel.send("Command not found: `" + message.content + "`");
-            return;
+            message.channel.send("Command not found: `" 
+                                 + message.content + "`");
         }
-        
-        message.channel.send(command.response);
+        else
+        {
+            message.channel.send(command.response);
+        }
     }
 
 });
