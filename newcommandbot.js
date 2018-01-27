@@ -10,9 +10,6 @@ const clientToken = fs.readFileSync("clienttoken.txt").toString();
 
 var jsonCommands;
 
-
-// todo: recognize when an added command is called
-
 // Description for commands:
 /* 
 {
@@ -52,8 +49,6 @@ client.on("ready", () =>
     {
         jsonCommands = {"commands": []};
     }
-        
-    console.log(findCommand(jsonCommands.commands, "!a", 254411326472847370));
 
     // Just keeping these two lines handy...
     // var fd = fs.openSync("commands.json", "w+");
@@ -77,12 +72,11 @@ client.on("message", message =>
         var args = message.content.slice(spliceIndex + 1); 
         var arg1, arg2;
 
-        console.log("Split message: " + args);
         spliceIndex = args.indexOf(" ");
 
         if (spliceIndex == -1)
         {
-            arg1 = arg1;
+            arg1 = args;
             arg2 = "";
         }
         else
@@ -90,6 +84,8 @@ client.on("message", message =>
             arg1 = args.slice(0, spliceIndex);
             arg2 = args.slice(spliceIndex + 1);
         }
+
+        arg1 = "!" + arg1;
 
         //console.log("args: " + arg1 + " " + arg2);
         //console.log("Found message: " + message.content);
@@ -100,42 +96,50 @@ client.on("message", message =>
         //  3) delete the command if arg2 is empty. (unless there arg1 isn't an existing command)
         var foundCommand = findCommand(jsonCommands.commands, arg1, message.channel.guild.id);
 
-        console.log(foundCommand);
-
         // Enter new comamnd
-        if (!foundCommand && arg2)
+        if (foundCommand == undefined && arg2 != "")
         {
+            
             jsonCommands.commands.push({
-                "command":  "!" + arg1,
+                "command": arg1,
                 "serverID": message.channel.guild.id,
                 "response": arg2
             });
-            console.log(jsonCommands);
-            // Add a "added!" message to user.
+            
+            fs.writeFileSync("commands.json", JSON.stringify(jsonCommands));
+            message.channel.send("Command `" + arg1 + "` added!");
         }
-        else if (foundCommand == true && arg2 == true)
+        else if (foundCommand != undefined && arg2 != "")
         {
-            // Unimplemented
+            // Edit the command's response.
+            foundCommand.response = arg2;
+            fs.writeFileSync("commands.json", JSON.stringify(jsonCommands));
+            message.channel.send("Command `" + arg1 + "` edited!");
         }
-        else if (foundCommand == true && arg2 == false)
+        else if (foundCommand != undefined && arg2 == "")
         {
             // Delete
+            // Find and remove
+            jsonCommands.commands
+                = jsonCommands.commands.filter(x => x != foundCommand);
+
+            message.channel.send("Command `" + arg1 + "` removed.");
+            fs.writeFileSync("commands.json", JSON.stringify(jsonCommands));
         }
         else // There's only one more option
         {
-            // Give error message.
+            message.channel.send("You need to give a response for command `" 
+                + arg1 + "`!");
         }
-
-        // Then we save changes.
 
     }
 
     // Or if its !x, search.
     // The user could type a command with spaces, but I'm just going to ignore it.
-
     else if (commandExp.test(message.content) == true)
     {
-        var command = findCommand(jsonCommands.commands, message.content, message.channel.guild.id)
+        var command 
+            = findCommand(jsonCommands.commands, message.content, message.channel.guild.id)
         if (!command)
         {
             message.channel.send("Command not found: `" + message.content + "`");
